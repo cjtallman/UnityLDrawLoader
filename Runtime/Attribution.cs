@@ -5,6 +5,10 @@
 /// This class stores attribution information such as author name.
 /// </details>
 
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
 namespace LDraw
 {
     public class Attribution
