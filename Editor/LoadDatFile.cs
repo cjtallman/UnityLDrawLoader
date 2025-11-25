@@ -31,34 +31,34 @@ namespace LDraw
 
         public DatFile(string filePath, string libraryPath, PartMesh partMesh)
         {
-            FilePath = filePath;
-            LibraryPath = libraryPath;
+            if(!filePath.EndsWith(".dat", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("Only .dat files are supported.", nameof(filePath));
+            }
+
+            if(string.IsNullOrEmpty(filePath))
+            {
+                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+            }
+
+            if(string.IsNullOrEmpty(libraryPath))
+            {
+                throw new ArgumentException("Library path cannot be null or empty.", nameof(libraryPath));
+            }
+
+            if(!System.IO.File.Exists(filePath))
+            {
+                throw new System.IO.FileNotFoundException("The specified .dat file was not found.", filePath);
+            }
+
+            if(!System.IO.Directory.Exists(libraryPath))
+            {
+                throw new System.IO.DirectoryNotFoundException("The specified LDraw library path was not found: " + libraryPath);
+            }
+
+            FilePath = filePath.Replace('/', '\\');
+            LibraryPath = libraryPath.Replace('/', '\\');
             Part = partMesh;
-
-            if(!FilePath.EndsWith(".dat", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ArgumentException("Only .dat files are supported.", nameof(FilePath));
-            }
-
-            if(string.IsNullOrEmpty(FilePath))
-            {
-                throw new ArgumentException("File path cannot be null or empty.", nameof(FilePath));
-            }
-
-            if(string.IsNullOrEmpty(LibraryPath))
-            {
-                throw new ArgumentException("Library path cannot be null or empty.", nameof(LibraryPath));
-            }
-
-            if(!System.IO.File.Exists(FilePath))
-            {
-                throw new System.IO.FileNotFoundException("The specified .dat file was not found.", FilePath);
-            }
-
-            if(!System.IO.Directory.Exists(LibraryPath))
-            {
-                throw new System.IO.DirectoryNotFoundException("The specified LDraw library path was not found: " + LibraryPath);
-            }
         }
 
         public void Load(Matrix4x4 transform, bool invert = false)

@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEditor;
+using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,6 +16,7 @@ namespace LDraw.Editor
         
         private string libraryPath = "";
         private string selectedFilePath = "";
+        private string selectedModelFilePath = "";
         private Vector2 scrollPosition;
         private Vector2 colorScrollPosition;
         private string[] datFiles;
@@ -25,9 +27,27 @@ namespace LDraw.Editor
         private float smoothingAngleThreshold = 30f;
         private List<LDrawColor> ldrawColors = new List<LDrawColor>();
         private int selectedColorIndex = -1;
-        
+
         private const int ITEMS_PER_PAGE = 50;
         private int currentPage = 0;
+
+        // Tab selection state
+        private int selectedTab = 0;
+        private readonly string[] tabNames = { "📁 Model Loader", "🧩 Part Loader", "🎨 Material Loader" };
+
+        /// <summary>
+        /// Normalizes directory separators for consistent display in the GUI
+        /// </summary>
+        /// <param name="path">The file path to normalize</param>
+        /// <returns>Path with normalized separators</returns>
+        private string NormalizePathForDisplay(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+                return path;
+
+            // Normalize all separators to forward slashes for consistency
+            return path.Replace('\\', '/');
+        }
 
         [MenuItem("Tools/LDraw Part Loader")]
         public static void ShowWindow()
@@ -45,10 +65,10 @@ namespace LDraw.Editor
             GUILayout.Label("LDraw Part Loader", EditorStyles.boldLabel);
             EditorGUILayout.Space();
 
-            // Library Path Selection
+            // Library Path Selection (always visible)
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Parts Library:", GUILayout.Width(100));
-            EditorGUILayout.TextField(libraryPath);
+            EditorGUILayout.TextField(NormalizePathForDisplay(libraryPath));
             if (GUILayout.Button("Browse", GUILayout.Width(80)))
             {
                 string path = EditorUtility.OpenFolderPanel("Select LDraw Parts Library", libraryPath, "");
@@ -56,6 +76,7 @@ namespace LDraw.Editor
                 {
                     libraryPath = path;
                     selectedFilePath = "";
+                    selectedModelFilePath = "";
                     LoadDatFiles();
                 }
             }
@@ -63,16 +84,102 @@ namespace LDraw.Editor
             if (GUILayout.Button("Rescan", GUILayout.Width(80)))
             {
                 selectedFilePath = "";
+                selectedModelFilePath = "";
                 LoadDatFiles();
             }
             GUI.enabled = true;
             EditorGUILayout.EndHorizontal();
-            
+
             if (isScanning)
             {
                 EditorGUILayout.HelpBox("Scanning library...", MessageType.Info);
             }
 
+            EditorGUILayout.Space();
+
+            // Tab Selection
+            selectedTab = GUILayout.Toolbar(selectedTab, tabNames);
+            EditorGUILayout.Space();
+
+            // Tab Content
+            switch (selectedTab)
+            {
+                case 0: // Model Loader Tab
+                    DrawModelLoaderTab();
+                    break;
+                case 1: // Part Loader Tab
+                    DrawPartLoaderTab();
+                    break;
+                case 2: // Material Loader Tab
+                    DrawMaterialLoaderTab();
+                    break;
+            }
+        }
+
+        private void DrawModelLoaderTab()
+        {
+            if (!string.IsNullOrEmpty(libraryPath))
+            {
+                EditorGUILayout.Space();
+
+                // Model File Selection
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField("Model File:", GUILayout.Width(80));
+                if (string.IsNullOrEmpty(selectedModelFilePath))
+                {
+                    EditorGUILayout.LabelField("No file selected", EditorStyles.helpBox);
+                }
+                else
+                {
+                    EditorGUILayout.LabelField(NormalizePathForDisplay(selectedModelFilePath), EditorStyles.helpBox);
+                }
+                if (GUILayout.Button("Browse", GUILayout.Width(80)))
+                {
+                    string modelPath = EditorUtility.OpenFilePanel(
+                        "Select LDraw Model File",
+                        libraryPath,
+                        "ldr,mpd"
+                    );
+                    if (!string.IsNullOrEmpty(modelPath))
+                    {
+                        selectedModelFilePath = modelPath;
+                        Debug.Log($"Model file selected: {modelPath}");
+                    }
+                }
+                EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.Space();
+
+                // Model Information Section
+                EditorGUILayout.LabelField("Model Information", EditorStyles.boldLabel);
+                EditorGUILayout.HelpBox("Model file information will appear here once a file is selected.", MessageType.Info);
+
+                EditorGUILayout.Space();
+
+                // Model Parts Section
+                EditorGUILayout.LabelField("Model Parts", EditorStyles.boldLabel);
+                EditorGUILayout.HelpBox("Parts used in the model will be listed here.", MessageType.Info);
+
+                EditorGUILayout.Space();
+
+                // Load Model Button (bottom)
+                GUI.enabled = !string.IsNullOrEmpty(selectedModelFilePath);
+                if (GUILayout.Button("Load Model", GUILayout.Height(30)))
+                {
+                    // TODO: Implement model loading functionality
+                    Debug.Log("Load Model button clicked - functionality not yet implemented");
+                    Debug.Log($"Would load model: {selectedModelFilePath}");
+                }
+                GUI.enabled = true;
+            }
+            else
+            {
+                EditorGUILayout.HelpBox("Select a parts library path to enable model loading.", MessageType.Info);
+            }
+        }
+
+        private void DrawPartLoaderTab()
+        {
             EditorGUILayout.Space();
 
             // Search Filter
@@ -85,32 +192,30 @@ namespace LDraw.Editor
                 {
                     searchFilter = newFilter;
                     selectedFilePath = "";
-                    scrollPosition = Vector2.zero;
                     ApplyFilter();
                 }
                 if (GUILayout.Button("Clear", GUILayout.Width(60)))
                 {
                     searchFilter = "";
                     selectedFilePath = "";
-                    scrollPosition = Vector2.zero;
                     ApplyFilter();
                 }
                 EditorGUILayout.EndHorizontal();
+
+                EditorGUILayout.Space();
             }
 
-            EditorGUILayout.Space();
-
-            // File Selection List
+            // File Selection List - ListView-style single selection with pagination
             if (filteredFiles != null && filteredFiles.Length > 0)
             {
                 int totalPages = Mathf.CeilToInt(filteredFiles.Length / (float)ITEMS_PER_PAGE);
                 currentPage = Mathf.Clamp(currentPage, 0, totalPages - 1);
-                
+
                 int startIndex = currentPage * ITEMS_PER_PAGE;
                 int endIndex = Mathf.Min(startIndex + ITEMS_PER_PAGE, filteredFiles.Length);
-                
+
                 EditorGUILayout.LabelField($"Showing {startIndex + 1}-{endIndex} of {filteredFiles.Length} files (Page {currentPage + 1}/{totalPages})", EditorStyles.boldLabel);
-                
+
                 // Pagination controls
                 EditorGUILayout.BeginHorizontal();
                 GUI.enabled = currentPage > 0;
@@ -127,9 +232,9 @@ namespace LDraw.Editor
                     selectedFilePath = "";
                 }
                 GUI.enabled = true;
-                
+
                 GUILayout.FlexibleSpace();
-                
+
                 EditorGUILayout.LabelField($"Page:", GUILayout.Width(40));
                 int newPage = EditorGUILayout.IntField(currentPage + 1, GUILayout.Width(50)) - 1;
                 if (newPage != currentPage && newPage >= 0 && newPage < totalPages)
@@ -139,9 +244,9 @@ namespace LDraw.Editor
                     selectedFilePath = "";
                 }
                 EditorGUILayout.LabelField($"of {totalPages}", GUILayout.Width(50));
-                
+
                 GUILayout.FlexibleSpace();
-                
+
                 GUI.enabled = currentPage < totalPages - 1;
                 if (GUILayout.Button("Next ►", GUILayout.Width(70)))
                 {
@@ -157,23 +262,37 @@ namespace LDraw.Editor
                 }
                 GUI.enabled = true;
                 EditorGUILayout.EndHorizontal();
-                
+
                 EditorGUILayout.Space();
-                
+
+                // ListView-style selection with pagination
                 scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, GUILayout.Height(250));
-                
+
                 for (int i = startIndex; i < endIndex; i++)
                 {
                     string fileName = Path.GetFileName(filteredFiles[i]);
                     bool isSelected = (filteredFiles[i] == selectedFilePath);
-                    bool newSelected = GUILayout.Toggle(isSelected, fileName, EditorStyles.radioButton);
-                    
-                    if (newSelected && !isSelected)
+                    Rect itemRect = EditorGUILayout.BeginHorizontal(GUILayout.Height(24));
+
+                    // Highlight selected item background
+                    if (isSelected)
+                    {
+                        GUI.color = new Color(0.2f, 0.4f, 0.8f, 1f); // Medium blue
+                        GUI.DrawTexture(itemRect, Texture2D.whiteTexture);
+                        GUI.color = Color.white;
+                    }
+
+                    // Click to select
+                    if (GUILayout.Button(fileName, EditorStyles.label, GUILayout.ExpandWidth(true), GUILayout.Height(24)))
                     {
                         selectedFilePath = filteredFiles[i];
+                        // Force repaint to update selection highlighting
+                        Repaint();
                     }
+
+                    EditorGUILayout.EndHorizontal();
                 }
-                
+
                 EditorGUILayout.EndScrollView();
             }
             else if (datFiles != null && datFiles.Length > 0)
@@ -191,14 +310,14 @@ namespace LDraw.Editor
             if (!string.IsNullOrEmpty(selectedFilePath))
             {
                 EditorGUILayout.LabelField("Selected File:", EditorStyles.boldLabel);
-                EditorGUILayout.SelectableLabel(selectedFilePath, GUILayout.Height(20));
+                EditorGUILayout.SelectableLabel(NormalizePathForDisplay(selectedFilePath), GUILayout.Height(20));
             }
 
             EditorGUILayout.Space();
 
-            // Options
+            // Options Section
             EditorGUILayout.LabelField("Options", EditorStyles.boldLabel);
-            
+
             EditorGUILayout.BeginHorizontal();
             bool newShowDialog = EditorGUILayout.Toggle("Show Duplicate Dialog", showDuplicateDialog);
             if (newShowDialog != showDuplicateDialog)
@@ -207,7 +326,7 @@ namespace LDraw.Editor
                 EditorPrefs.SetBool(SHOW_DUPLICATE_DIALOG_KEY, showDuplicateDialog);
             }
             EditorGUILayout.EndHorizontal();
-            
+
             // Smoothing settings
             EditorGUILayout.BeginHorizontal();
             float newSmoothingAngle = EditorGUILayout.Slider("Smoothing Angle", smoothingAngleThreshold, 0f, 180f);
@@ -220,32 +339,30 @@ namespace LDraw.Editor
 
             EditorGUILayout.Space();
 
-            // Load Button
+            // Load Part Button (bottom)
             GUI.enabled = !string.IsNullOrEmpty(selectedFilePath);
             if (GUILayout.Button("Load Part", GUILayout.Height(30)))
             {
                 LoadPart();
             }
             GUI.enabled = true;
+        }
 
-            EditorGUILayout.Space();
-            EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+        private void DrawMaterialLoaderTab()
+        {
             EditorGUILayout.Space();
 
-            // LDraw Colors Section
-            EditorGUILayout.LabelField("LDraw Colors", EditorStyles.boldLabel);
-            
             if (ldrawColors.Count > 0)
             {
                 EditorGUILayout.LabelField($"Loaded {ldrawColors.Count} solid colors from LDConfig.ldr");
-                
+
                 colorScrollPosition = EditorGUILayout.BeginScrollView(colorScrollPosition, GUILayout.Height(150));
-                
+
                 for (int i = 0; i < ldrawColors.Count; i++)
                 {
                     var color = ldrawColors[i];
                     EditorGUILayout.BeginHorizontal();
-                    
+
                     // Radio button selection
                     bool isSelected = (i == selectedColorIndex);
                     bool newSelected = GUILayout.Toggle(isSelected, "", EditorStyles.radioButton, GUILayout.Width(20));
@@ -253,38 +370,36 @@ namespace LDraw.Editor
                     {
                         selectedColorIndex = i;
                     }
-                    
+
                     // Color preview box
                     Rect colorRect = GUILayoutUtility.GetRect(20, 20, GUILayout.Width(20), GUILayout.Height(20));
                     EditorGUI.DrawRect(colorRect, color.Color);
-                    
+
                     EditorGUILayout.LabelField($"{color.Code}: {color.Name}", GUILayout.Width(200));
                     EditorGUILayout.LabelField($"HEX: #{ColorUtility.ToHtmlStringRGB(color.Color)}", GUILayout.ExpandWidth(true));
-                    
+
                     EditorGUILayout.EndHorizontal();
                 }
-                
+
                 EditorGUILayout.EndScrollView();
-                
-                EditorGUILayout.Space();
-                EditorGUILayout.Space();
-                
-                // Load Color Material Button
-                GUI.enabled = selectedColorIndex >= 0 && selectedColorIndex < ldrawColors.Count;
-                if (GUILayout.Button("Load Color Material", GUILayout.Height(30)))
-                {
-                    LoadColorMaterial(ldrawColors[selectedColorIndex]);
-                }
-                GUI.enabled = true;
-                
-                EditorGUILayout.Space();
             }
             else if (!string.IsNullOrEmpty(libraryPath))
             {
                 EditorGUILayout.HelpBox("No LDConfig.ldr found or no solid colors loaded.", MessageType.Info);
             }
+
+            EditorGUILayout.Space();
+
+            // Load Material Button (bottom)
+            GUI.enabled = selectedColorIndex >= 0 && selectedColorIndex < ldrawColors.Count;
+            if (GUILayout.Button("Load Material", GUILayout.Height(30)))
+            {
+                LoadColorMaterial(ldrawColors[selectedColorIndex]);
+            }
+            GUI.enabled = true;
         }
 
+        
         private void LoadCachedData()
         {
             libraryPath = EditorPrefs.GetString(CACHE_PREF_KEY, "");
@@ -340,7 +455,15 @@ namespace LDraw.Editor
                     {
                         datFiles = Directory.GetFiles(libraryPath, "*.dat", SearchOption.TopDirectoryOnly);
                     }
-                    
+
+                    // Sort lexicographically by filename
+                    if (datFiles != null)
+                    {
+                        datFiles = datFiles
+                            .OrderBy(path => Path.GetFileName(path), System.StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Length)
+                            .ToArray();
+                    }
+
                     selectedFilePath = "";
                     searchFilter = "";
                     ApplyFilter();
@@ -472,16 +595,121 @@ namespace LDraw.Editor
 
             if (string.IsNullOrEmpty(searchFilter))
             {
-                filteredFiles = datFiles;
+                // When no search filter, use lexicographic sorting
+                filteredFiles = datFiles
+                    .OrderBy(path => Path.GetFileName(path), System.StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
             }
             else
             {
+                // Filter and sort by relevance
                 filteredFiles = datFiles
                     .Where(path => Path.GetFileName(path).IndexOf(searchFilter, System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    .OrderByDescending(path => CalculateSearchRelevance(Path.GetFileName(path), searchFilter))
+                    .ThenBy(path => Path.GetFileName(path), System.StringComparer.OrdinalIgnoreCase)
                     .ToArray();
             }
-            
+
             currentPage = 0;
+        }
+
+        private float CalculateSearchRelevance(string filename, string searchText)
+        {
+            if (string.IsNullOrEmpty(searchText) || string.IsNullOrEmpty(filename))
+                return 0f;
+
+            filename = filename.ToLowerInvariant();
+            searchText = searchText.ToLowerInvariant();
+
+            // Exact match gets highest score
+            if (filename.Equals(searchText))
+                return 100f;
+
+            // Exact match without extension
+            string filenameWithoutExt = Path.GetFileNameWithoutExtension(filename);
+            if (filenameWithoutExt.Equals(searchText))
+                return 95f;
+
+            // Starts with search text
+            if (filename.StartsWith(searchText))
+                return 90f;
+
+            // Starts with search text (without extension)
+            if (filenameWithoutExt.StartsWith(searchText))
+                return 85f;
+
+            // Contains exact search text as substring
+            int exactMatchIndex = filename.IndexOf(searchText);
+            if (exactMatchIndex >= 0)
+            {
+                // Score based on how early the match appears
+                float positionScore = 80f - (exactMatchIndex * 2f);
+                return Math.Max(0f, positionScore);
+            }
+
+            // Contains exact search text in filename (without extension)
+            int exactMatchWithoutExtIndex = filenameWithoutExt.IndexOf(searchText);
+            if (exactMatchWithoutExtIndex >= 0)
+            {
+                // Score based on how early the match appears
+                float positionScore = 75f - (exactMatchWithoutExtIndex * 2f);
+                return Math.Max(0f, positionScore);
+            }
+
+            // Check for word boundary matches
+            string[] searchWords = searchText.Split(new[] { ' ', '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+            if (searchWords.Length > 0)
+            {
+                float totalWordScore = 0f;
+                int matchedWords = 0;
+
+                string[] filenameWords = filename.Split(new[] { ' ', '-', '_', '.' }, StringSplitOptions.RemoveEmptyEntries);
+
+                foreach (string searchWord in searchWords)
+                {
+                    foreach (string filenameWord in filenameWords)
+                    {
+                        if (filenameWord.Contains(searchWord))
+                        {
+                            matchedWords++;
+                            if (filenameWord.Equals(searchWord))
+                                totalWordScore += 20f; // Exact word match
+                            else if (filenameWord.StartsWith(searchWord))
+                                totalWordScore += 15f; // Word starts with search
+                            else
+                                totalWordScore += 10f; // Word contains search
+                            break;
+                        }
+                    }
+                }
+
+                if (matchedWords > 0)
+                {
+                    // Bonus for matching more words
+                    float wordMatchRatio = (float)matchedWords / searchWords.Length;
+                    return totalWordScore * wordMatchRatio;
+                }
+            }
+
+            // Character-level matching (as last resort)
+            int matchedChars = 0;
+            int searchIndex = 0;
+
+            for (int i = 0; i < filename.Length && searchIndex < searchText.Length; i++)
+            {
+                if (filename[i] == searchText[searchIndex])
+                {
+                    matchedChars++;
+                    searchIndex++;
+                }
+            }
+
+            if (matchedChars > 0)
+            {
+                return (matchedChars * 2f); // Minimal score for partial character matches
+            }
+
+            return 0f; // No match
         }
 
         private void LoadPart()
@@ -514,8 +742,6 @@ namespace LDraw.Editor
                     return;
                 }
                 
-                // EditorUtility.DisplayProgressBar("Loading LDraw Part", "Parsing file...", 0.5f);
-
                 PartMesh partMesh = new PartMesh();
                 partMesh.SmoothingAngleThreshold = smoothingAngleThreshold;
                 partMesh.LoadFromFile(selectedFilePath, libraryPath);
