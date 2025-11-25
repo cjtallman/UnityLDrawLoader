@@ -11,6 +11,7 @@ namespace LDraw.Editor
         private const string CACHE_PREF_KEY = "LDrawLoader_LibraryPath";
         private const string CACHE_FILE_KEY = "LDrawLoader_CachedFiles";
         private const string SHOW_DUPLICATE_DIALOG_KEY = "LDrawLoader_ShowDuplicateDialog";
+        private const string SMOOTHING_ANGLE_KEY = "LDrawLoader_SmoothingAngle";
         
         private string libraryPath = "";
         private string selectedFilePath = "";
@@ -21,6 +22,7 @@ namespace LDraw.Editor
         private string searchFilter = "";
         private bool isScanning = false;
         private bool showDuplicateDialog = true;
+        private float smoothingAngleThreshold = 30f;
         private List<LDrawColor> ldrawColors = new List<LDrawColor>();
         private int selectedColorIndex = -1;
         
@@ -195,12 +197,24 @@ namespace LDraw.Editor
             EditorGUILayout.Space();
 
             // Options
+            EditorGUILayout.LabelField("Options", EditorStyles.boldLabel);
+            
             EditorGUILayout.BeginHorizontal();
             bool newShowDialog = EditorGUILayout.Toggle("Show Duplicate Dialog", showDuplicateDialog);
             if (newShowDialog != showDuplicateDialog)
             {
                 showDuplicateDialog = newShowDialog;
                 EditorPrefs.SetBool(SHOW_DUPLICATE_DIALOG_KEY, showDuplicateDialog);
+            }
+            EditorGUILayout.EndHorizontal();
+            
+            // Smoothing settings
+            EditorGUILayout.BeginHorizontal();
+            float newSmoothingAngle = EditorGUILayout.Slider("Smoothing Angle", smoothingAngleThreshold, 0f, 180f);
+            if (Mathf.Abs(newSmoothingAngle - smoothingAngleThreshold) > 0.01f)
+            {
+                smoothingAngleThreshold = newSmoothingAngle;
+                EditorPrefs.SetFloat(SMOOTHING_ANGLE_KEY, smoothingAngleThreshold);
             }
             EditorGUILayout.EndHorizontal();
 
@@ -275,6 +289,7 @@ namespace LDraw.Editor
         {
             libraryPath = EditorPrefs.GetString(CACHE_PREF_KEY, "");
             showDuplicateDialog = EditorPrefs.GetBool(SHOW_DUPLICATE_DIALOG_KEY, true);
+            smoothingAngleThreshold = EditorPrefs.GetFloat(SMOOTHING_ANGLE_KEY, 30f);
             
             if (!string.IsNullOrEmpty(libraryPath) && Directory.Exists(libraryPath))
             {
@@ -499,9 +514,10 @@ namespace LDraw.Editor
                     return;
                 }
                 
-                EditorUtility.DisplayProgressBar("Loading LDraw Part", "Parsing file...", 0.5f);
+                // EditorUtility.DisplayProgressBar("Loading LDraw Part", "Parsing file...", 0.5f);
 
                 PartMesh partMesh = new PartMesh();
+                partMesh.SmoothingAngleThreshold = smoothingAngleThreshold;
                 partMesh.LoadFromFile(selectedFilePath, libraryPath);
 
                 if (partMesh.Mesh == null)
