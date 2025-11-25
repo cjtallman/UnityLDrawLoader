@@ -29,7 +29,7 @@ namespace LDraw.Editor
         private const int ITEMS_PER_PAGE = 50;
         private int currentPage = 0;
 
-        [MenuItem("Tools/LDraw/Part Loader")]
+        [MenuItem("Tools/LDraw Part Loader")]
         public static void ShowWindow()
         {
             GetWindow<LDrawLoaderWindow>("LDraw Part Loader");
@@ -160,7 +160,7 @@ namespace LDraw.Editor
                 
                 EditorGUILayout.Space();
                 
-                scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, GUILayout.Height(300));
+                scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, GUILayout.Height(250));
                 
                 for (int i = startIndex; i < endIndex; i++)
                 {
@@ -259,7 +259,7 @@ namespace LDraw.Editor
                     EditorGUI.DrawRect(colorRect, color.Color);
                     
                     EditorGUILayout.LabelField($"{color.Code}: {color.Name}", GUILayout.Width(200));
-                    EditorGUILayout.LabelField($"RGB: {color.Color}", GUILayout.ExpandWidth(true));
+                    EditorGUILayout.LabelField($"HEX: #{ColorUtility.ToHtmlStringRGB(color.Color)}", GUILayout.ExpandWidth(true));
                     
                     EditorGUILayout.EndHorizontal();
                 }
