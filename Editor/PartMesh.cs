@@ -13,6 +13,7 @@ namespace LDraw
         public Mesh Mesh { get; private set; }
         public Attribution Attribution { get; private set; }
         public List<string> SourceFiles { get; private set; }
+        
         private List<Vector3> vertices = new List<Vector3>();
         private List<int> triangles = new List<int>();
 

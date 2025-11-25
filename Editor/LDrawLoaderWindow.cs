@@ -50,12 +50,14 @@ namespace LDraw.Editor
                 if (!string.IsNullOrEmpty(path))
                 {
                     libraryPath = path;
+                    selectedFilePath = "";
                     LoadDatFiles();
                 }
             }
             GUI.enabled = !string.IsNullOrEmpty(libraryPath) && !isScanning;
             if (GUILayout.Button("Rescan", GUILayout.Width(80)))
             {
+                selectedFilePath = "";
                 LoadDatFiles();
             }
             GUI.enabled = true;
@@ -77,11 +79,15 @@ namespace LDraw.Editor
                 if (newFilter != searchFilter)
                 {
                     searchFilter = newFilter;
+                    selectedFilePath = "";
+                    scrollPosition = Vector2.zero;
                     ApplyFilter();
                 }
                 if (GUILayout.Button("Clear", GUILayout.Width(60)))
                 {
                     searchFilter = "";
+                    selectedFilePath = "";
+                    scrollPosition = Vector2.zero;
                     ApplyFilter();
                 }
                 EditorGUILayout.EndHorizontal();
@@ -107,11 +113,13 @@ namespace LDraw.Editor
                 {
                     currentPage = 0;
                     scrollPosition = Vector2.zero;
+                    selectedFilePath = "";
                 }
                 if (GUILayout.Button("◄ Prev", GUILayout.Width(70)))
                 {
                     currentPage--;
                     scrollPosition = Vector2.zero;
+                    selectedFilePath = "";
                 }
                 GUI.enabled = true;
                 
@@ -123,6 +131,7 @@ namespace LDraw.Editor
                 {
                     currentPage = newPage;
                     scrollPosition = Vector2.zero;
+                    selectedFilePath = "";
                 }
                 EditorGUILayout.LabelField($"of {totalPages}", GUILayout.Width(50));
                 
@@ -133,11 +142,13 @@ namespace LDraw.Editor
                 {
                     currentPage++;
                     scrollPosition = Vector2.zero;
+                    selectedFilePath = "";
                 }
                 if (GUILayout.Button("Last ►►", GUILayout.Width(70)))
                 {
                     currentPage = totalPages - 1;
                     scrollPosition = Vector2.zero;
+                    selectedFilePath = "";
                 }
                 GUI.enabled = true;
                 EditorGUILayout.EndHorizontal();
@@ -301,7 +312,14 @@ namespace LDraw.Editor
             {
                 // Check if asset already exists
                 string fileName = Path.GetFileNameWithoutExtension(selectedFilePath);
-                string assetPath = $"Assets/{fileName}_mesh.asset";
+                string partsFolder = "Assets/Parts";
+                string assetPath = $"{partsFolder}/{fileName}_mesh.asset";
+                
+                // Ensure Parts folder exists
+                if (!AssetDatabase.IsValidFolder(partsFolder))
+                {
+                    AssetDatabase.CreateFolder("Assets", "Parts");
+                }
                 
                 Mesh existingMesh = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
                 if (existingMesh != null)
