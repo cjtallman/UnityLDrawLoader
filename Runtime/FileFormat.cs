@@ -65,12 +65,12 @@ namespace LDraw
     public enum BfcOption
     {
         None,
-        Certify, // 0 BFC CERTIFY
-        NoCertify, // 0 BFC NOCERTIFY
-        Clip, // 0 BFC CLIP
-        NoClip, // 0 BFC NOCLIP
-        CW, // 0 BFC CW
-        CCW, // 0 BFC CCW
+        Certify,    // 0 BFC CERTIFY
+        NoCertify,  // 0 BFC NOCERTIFY
+        Clip,       // 0 BFC CLIP
+        NoClip,     // 0 BFC NOCLIP
+        CW,         // 0 BFC CW
+        CCW,        // 0 BFC CCW
         InvertNext, // 0 BFC INVERTNEXT
     }
 }
