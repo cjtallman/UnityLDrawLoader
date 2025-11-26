@@ -23,7 +23,7 @@ namespace LDraw.Editor
         private string[] filteredFiles;
         private string searchFilter = "";
         private bool isScanning = false;
-        private bool showDuplicateDialog = true;
+private bool showDuplicateDialog = true;
         private float smoothingAngleThreshold = 30f;
         private List<LDrawColor> ldrawColors = new List<LDrawColor>();
         private int selectedColorIndex = -1;
@@ -35,6 +35,10 @@ namespace LDraw.Editor
         // Tab selection state
         private int selectedTab = 0;
         private readonly string[] tabNames = { "📁 Model Loader", "🧩 Part Loader", "🎨 Material Loader" };
+
+        // Model loader state
+        private bool createPrefab = false;
+        private string prefabName = "";
 
         /// <summary>
         /// Normalizes directory separators for consistent display in the GUI
@@ -155,6 +159,24 @@ namespace LDraw.Editor
                 EditorGUILayout.LabelField("Model Information", EditorStyles.boldLabel);
                 EditorGUILayout.HelpBox("Model file information will appear here once a file is selected.", MessageType.Info);
 
+EditorGUILayout.Space();
+
+                // Prefab Creation Options
+                EditorGUILayout.LabelField("Prefab Options", EditorStyles.boldLabel);
+                createPrefab = EditorGUILayout.Toggle("Create Prefab", createPrefab);
+                if (createPrefab)
+                {
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.LabelField("Prefab Name:", GUILayout.Width(80));
+                    prefabName = EditorGUILayout.TextField(prefabName);
+                    EditorGUILayout.EndHorizontal();
+                    
+                    if (string.IsNullOrEmpty(prefabName))
+                    {
+                        EditorGUILayout.HelpBox("Enter a prefab name to enable prefab creation.", MessageType.Warning);
+                    }
+                }
+
                 EditorGUILayout.Space();
 
                 // Model Parts Section
@@ -167,9 +189,7 @@ namespace LDraw.Editor
                 GUI.enabled = !string.IsNullOrEmpty(selectedModelFilePath);
                 if (GUILayout.Button("Load Model", GUILayout.Height(30)))
                 {
-                    // TODO: Implement model loading functionality
-                    Debug.Log("Load Model button clicked - functionality not yet implemented");
-                    Debug.Log($"Would load model: {selectedModelFilePath}");
+                    LoadModel();
                 }
                 GUI.enabled = true;
             }
@@ -430,6 +450,39 @@ namespace LDraw.Editor
                 LoadColorMaterial(ldrawColors[selectedColorIndex]);
             }
             GUI.enabled = true;
+}
+
+        private void LoadModel()
+        {
+            try
+            {
+                LdrFile ldrFile = new LdrFile(selectedModelFilePath, libraryPath);
+                GameObject modelRoot = ldrFile.LoadModelFromFile();
+
+                if (createPrefab && !string.IsNullOrEmpty(prefabName))
+                {
+                    string prefabPath = $"{LDrawSettings.ModelAssetsFolder}/{prefabName}.prefab";
+                    GameObject prefab = LdrFile.CreatePrefabFromModel(modelRoot, prefabPath);
+                    Debug.Log($"Model loaded and prefab created: {prefabPath}");
+                    
+                    // Select the prefab in Project window
+                    Selection.activeObject = prefab;
+                    EditorGUIUtility.PingObject(prefab);
+                }
+                else
+                {
+                    Debug.Log($"Model loaded: {modelRoot.name}");
+                }
+
+                // Select the created model in hierarchy
+                Selection.activeGameObject = modelRoot;
+                EditorGUIUtility.PingObject(modelRoot);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Failed to load model: {ex.Message}");
+                EditorUtility.DisplayDialog("Load Error", $"Failed to load model: {ex.Message}", "OK");
+            }
         }
 
         
@@ -751,14 +804,11 @@ namespace LDraw.Editor
             {
                 // Check if asset already exists
                 string fileName = Path.GetFileNameWithoutExtension(selectedFilePath);
-                string partsFolder = "Assets/Parts";
+                string partsFolder = LDrawSettings.PartAssetsFolder;
                 string assetPath = $"{partsFolder}/{fileName}_mesh.asset";
                 
                 // Ensure Parts folder exists
-                if (!AssetDatabase.IsValidFolder(partsFolder))
-                {
-                    AssetDatabase.CreateFolder("Assets", "Parts");
-                }
+                LDrawSettings.EnsureAssetsFolderExists(partsFolder);
                 
                 Mesh existingMesh = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
                 if (existingMesh != null)
@@ -775,11 +825,9 @@ namespace LDraw.Editor
                     return;
                 }
                 
-                PartMesh partMesh = new PartMesh();
-                partMesh.SmoothingAngleThreshold = smoothingAngleThreshold;
-                partMesh.LoadFromFile(selectedFilePath, libraryPath);
+                Mesh partMesh = DatFile.LoadMeshFromFile(selectedFilePath, libraryPath);
 
-                if (partMesh.Mesh == null)
+                if (partMesh == null)
                 {
                     EditorUtility.ClearProgressBar();
                     EditorUtility.DisplayDialog("Load Failed", "PartMesh.Mesh is null after loading.", "OK");
@@ -787,7 +835,7 @@ namespace LDraw.Editor
                 }
 
                 // Create mesh asset
-                AssetDatabase.CreateAsset(partMesh.Mesh, assetPath);
+                AssetDatabase.CreateAsset(partMesh, assetPath);
                 AssetDatabase.SaveAssets();
 
                 EditorUtility.ClearProgressBar();
@@ -809,13 +857,10 @@ namespace LDraw.Editor
             try
             {
                 // Create materials folder if it doesn't exist
-                string materialsFolder = "Assets/Materials";
-                if (!AssetDatabase.IsValidFolder(materialsFolder))
-                {
-                    AssetDatabase.CreateFolder("Assets", "Materials");
-                }
+                string materialsFolder = LDrawSettings.MaterialAssetsFolder;
+                LDrawSettings.EnsureAssetsFolderExists(materialsFolder);
 
-                string materialPath = $"{materialsFolder}/Lego - {ldrawColor.Name} - {ldrawColor.Code}.mat";
+                string materialPath = $"{materialsFolder}/{ldrawColor.Name}_{ldrawColor.Code}.mat";
 
                 // Check if material already exists
                 Material existingMaterial = AssetDatabase.LoadAssetAtPath<Material>(materialPath);

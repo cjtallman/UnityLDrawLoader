@@ -12,16 +12,17 @@
 
 
 using System;
-using System.Collections.Generic;
+using System.IO;
 using System.Text.RegularExpressions;
+using UnityEditor;
 using UnityEngine;
 
-namespace LDraw
+namespace LDraw.Editor
 {
 
     public class DatFile
     {
-        private PartMesh Part;
+        private PartMeshData Part;
         private string FilePath;
         private string LibraryPath;
         private bool IsCcw = true;
@@ -29,7 +30,7 @@ namespace LDraw
         private bool InvertNext = false;
         private Matrix4x4 CurrentTransform = Matrix4x4.identity;
 
-        public DatFile(string filePath, string libraryPath, PartMesh partMesh)
+        public DatFile(string filePath, string libraryPath, PartMeshData partMesh = null)
         {
             if(!filePath.EndsWith(".dat", StringComparison.OrdinalIgnoreCase))
             {
@@ -61,11 +62,39 @@ namespace LDraw
             Part = partMesh;
         }
 
+        public static Mesh LoadMeshFromFile(string filePath, string libraryPath)
+        {
+            // Only accept .dat files for part meshes.
+            if (!filePath.EndsWith(".dat", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            string fileName = Path.GetFileNameWithoutExtension(filePath);
+            string assetPath = $"{LDrawSettings.PartAssetsFolder}/{fileName}_mesh.asset";
+            Mesh existingMesh = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
+            if (existingMesh != null)
+            {
+                return existingMesh;
+            }
+
+            PartMeshData partMesh = new();
+            DatFile datFile = new DatFile(filePath, libraryPath, partMesh);
+                
+            try {
+                // Flip the Y axis to convert from LDraw to Unity coordinate system.
+                datFile.Load(Matrix4x4.Scale(new Vector3(1, -1, 1)), false);
+            } catch (Exception ex) {
+                throw new InvalidOperationException($"Failed to load part mesh from file: {filePath}", ex);
+            }
+
+            return partMesh.GenerateMesh();
+        }
+
         public void Load(Matrix4x4 transform, bool invert = false)
         {
             Invert = invert;
             CurrentTransform = transform;
-            Part.SourceFiles.Add(FilePath);
 
             // Load the file and parse its contents.
             using (var reader = new System.IO.StreamReader(FilePath))
@@ -158,20 +187,6 @@ namespace LDraw
 
             switch(tokens[1].ToUpperInvariant())
             {
-                case "AUTHOR":
-                    Regex regex = new Regex(@"^0\s+AUTHOR\s+(.+)$", RegexOptions.IgnoreCase);
-                    Match match = regex.Match(line);
-                    if (!match.Success)
-                    {
-                        return; // Invalid AUTHOR line.
-                    }
-                    var authorName = match.Groups[1].Value.Trim();
-                    if (!string.IsNullOrEmpty(authorName))
-                    {
-                        Part.Attribution.AuthorNames.Add(authorName);
-                    }
-                    return;
-
                 case "BFC":
                     HandleBfcCommand(line.Trim());
                     return;

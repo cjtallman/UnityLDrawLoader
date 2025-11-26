@@ -4,3 +4,322 @@
 /// <details>
 /// This class is responsible for loading and parsing .ldr files
 /// in the LDraw file format. It reads the file line by line,
+/// interprets the line types, and constructs the corresponding
+/// GameObject hierarchy with each part as a separate child.
+///
+/// See https://www.ldraw.org/article/218.html for more information.
+/// </details>
+
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text.RegularExpressions;
+using UnityEditor;
+using UnityEngine;
+
+namespace LDraw.Editor
+{
+    /// <summary>
+    /// Represents a single LDraw part within a model file.
+    /// </summary>
+    public class LDrawPart
+    {
+        public string FileName { get; set; }
+        public int Color { get; set; }
+        public Vector3 Position { get; set; }
+        public Matrix4x4 Transform { get; set; }
+        public GameObject GameObject { get; set; }
+    }
+
+    public class LdrFile
+    {
+        private readonly string FilePath;
+        private readonly string LibraryPath;
+        private readonly List<LDrawPart> Parts = new List<LDrawPart>();
+
+        public LdrFile(string filePath, string libraryPath)
+        {
+            if (!filePath.EndsWith(".ldr", StringComparison.OrdinalIgnoreCase) && 
+                !filePath.EndsWith(".mpd", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("Only .ldr and .mpd files are supported.", nameof(filePath));
+            }
+
+            if (string.IsNullOrEmpty(filePath))
+            {
+                throw new ArgumentException("File path cannot be null or empty.", nameof(filePath));
+            }
+
+            if (string.IsNullOrEmpty(libraryPath))
+            {
+                throw new ArgumentException("Library path cannot be null or empty.", nameof(libraryPath));
+            }
+
+            if (!File.Exists(filePath))
+            {
+                throw new FileNotFoundException("The specified .ldr file was not found.", filePath);
+            }
+
+            if (!Directory.Exists(libraryPath))
+            {
+                throw new DirectoryNotFoundException("The specified LDraw library path was not found: " + libraryPath);
+            }
+
+            FilePath = filePath.Replace('/', '\\');
+            LibraryPath = libraryPath.Replace('/', '\\');
+        }
+
+        /// <summary>
+        /// Loads the LDraw model file and creates a GameObject hierarchy in the scene.
+        /// </summary>
+        /// <returns>The root GameObject of the loaded model.</returns>
+        public GameObject LoadModelFromFile()
+        {
+            ParseFile();
+
+            string modelName = Path.GetFileNameWithoutExtension(FilePath);
+            GameObject rootObject = new GameObject(modelName);
+            rootObject.transform.position = Vector3.zero;
+
+            foreach (LDrawPart part in Parts)
+            {
+                CreatePartGameObject(part, rootObject.transform);
+            }
+
+            return rootObject;
+        }
+
+        /// <summary>
+        /// Creates a prefab from an existing model GameObject.
+        /// </summary>
+        /// <param name="modelRoot">The root GameObject of the model.</param>
+        /// <param name="prefabPath">The path where the prefab should be saved.</param>
+        /// <returns>The created prefab GameObject.</returns>
+        public static GameObject CreatePrefabFromModel(GameObject modelRoot, string prefabPath)
+        {
+            if (modelRoot == null)
+            {
+                throw new ArgumentNullException(nameof(modelRoot));
+            }
+
+            if (string.IsNullOrEmpty(prefabPath))
+            {
+                throw new ArgumentException("Prefab path cannot be null or empty.", nameof(prefabPath));
+            }
+
+            LDrawSettings.EnsureAssetsFolderExists(Path.GetDirectoryName(prefabPath));
+
+            string localPath = prefabPath.Replace(Application.dataPath, "Assets");
+            GameObject prefab = PrefabUtility.SaveAsPrefabAsset(modelRoot, localPath);
+
+            return prefab;
+        }
+
+        private void ParseFile()
+        {
+            Parts.Clear();
+
+            using (var reader = new StreamReader(FilePath))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
+                {
+                    ParseLine(line);
+                }
+            }
+        }
+
+        private void ParseLine(string line)
+        {
+            var trimmedLine = line.Trim();
+            if (string.IsNullOrEmpty(trimmedLine))
+            {
+                return;
+            }
+
+            switch (trimmedLine[0])
+            {
+                case '0':
+                    HandleComment(trimmedLine);
+                    break;
+                case '1':
+                    HandleSubFile(trimmedLine);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        private void HandleComment(string line)
+        {
+            // Comments and META commands are ignored for model loading
+        }
+
+        private void HandleSubFile(string line)
+        {
+            // Match `1 <colour> x y z a b c d e f g h i <file>`
+            Regex regex = new Regex(@"^(1)\s+(-?\d+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+(.+)$");
+            Match match = regex.Match(line);
+            if (!match.Success)
+            {
+                return;
+            }
+
+            string fileName = match.Groups[15].Value.Trim();
+            string filePath = FindPartFile(fileName);
+            if (string.IsNullOrEmpty(filePath))
+            {
+                Debug.LogWarning($"Part file not found: {fileName} referenced in {FilePath}");
+                return;
+            }
+
+            // Parse color and position
+            int color = int.Parse(match.Groups[2].Value);
+            float x = float.Parse(match.Groups[3].Value);
+            float y = float.Parse(match.Groups[4].Value);
+            float z = float.Parse(match.Groups[5].Value);
+
+            // Parse transformation matrix
+            float a = float.Parse(match.Groups[6].Value);
+            float b = float.Parse(match.Groups[7].Value);
+            float c = float.Parse(match.Groups[8].Value);
+            float d = float.Parse(match.Groups[9].Value);
+            float e = float.Parse(match.Groups[10].Value);
+            float f = float.Parse(match.Groups[11].Value);
+            float g = float.Parse(match.Groups[12].Value);
+            float h = float.Parse(match.Groups[13].Value);
+            float i = float.Parse(match.Groups[14].Value);
+
+            Matrix4x4 transform = new Matrix4x4();
+            transform.SetRow(0, new Vector4(a, b, c, x));
+            transform.SetRow(1, new Vector4(d, e, f, y));
+            transform.SetRow(2, new Vector4(g, h, i, z));
+            transform.SetRow(3, new Vector4(0, 0, 0, 1));
+
+            // Apply LDU to Unity units scaling and Y-axis flip for positioning only
+            // 1 LDU = 0.4 mm = 0.0004 meters (Unity units)
+            Matrix4x4 lduScaling = Matrix4x4.Scale(new Vector3(0.0004f, 0.0004f, 0.0004f));
+            Matrix4x4 positionTransform = lduScaling * transform;
+            
+            // Apply Y-axis flip to position only (not rotation)
+            Vector3 scaledPosition = positionTransform.GetColumn(3);
+            scaledPosition.y = -scaledPosition.y;
+            
+            // Extract rotation matrix (3x3 part) and apply scaling only
+            Matrix4x4 rotationMatrix = Matrix4x4.identity;
+            rotationMatrix.SetColumn(0, transform.GetColumn(0) * 0.0004f);
+            rotationMatrix.SetColumn(1, transform.GetColumn(1) * 0.0004f);
+            rotationMatrix.SetColumn(2, transform.GetColumn(2) * 0.0004f);
+
+            LDrawPart part = new LDrawPart
+            {
+                FileName = fileName,
+                Color = color,
+                Position = scaledPosition,
+                Transform = rotationMatrix
+            };
+
+            Parts.Add(part);
+        }
+
+        private string FindPartFile(string fileName)
+        {
+            // file is relative to library path
+            string filePath = Path.Combine(LibraryPath, fileName);
+            if (File.Exists(filePath))
+            {
+                return filePath;
+            }
+
+            // try parts subdirectory
+            filePath = Path.Combine(LibraryPath, "parts", fileName);
+            if (File.Exists(filePath))
+            {
+                return filePath;
+            }
+
+            // try p subdirectory
+            filePath = Path.Combine(LibraryPath, "p", fileName);
+            if (File.Exists(filePath))
+            {
+                return filePath;
+            }
+
+            return null;
+        }
+
+        private void CreatePartGameObject(LDrawPart part, Transform parent)
+        {
+            string partName = Path.GetFileNameWithoutExtension(part.FileName);
+            GameObject partObject = new GameObject(partName);
+            partObject.transform.parent = parent;
+
+            string partFilePath = FindPartFile(part.FileName);
+            if (!string.IsNullOrEmpty(partFilePath))
+            {
+                Mesh mesh = DatFile.LoadMeshFromFile(partFilePath, LibraryPath);
+                if (mesh != null)
+                {
+                    MeshFilter meshFilter = partObject.AddComponent<MeshFilter>();
+                    meshFilter.sharedMesh = mesh;
+
+                    MeshRenderer renderer = partObject.AddComponent<MeshRenderer>();
+                    AssignMaterial(renderer, part.Color);
+                }
+            }
+
+            partObject.transform.position = part.Position;
+            partObject.transform.rotation = part.Transform.rotation;
+
+            part.GameObject = partObject;
+        }
+
+        private void AssignMaterial(MeshRenderer renderer, int colorCode)
+        {
+            Material material = new Material(Shader.Find("Standard"));
+
+            switch (colorCode)
+            {
+                case 16:
+                    // Main color - use default gray
+                    material.color = Color.gray;
+                    break;
+                case 24:
+                    // Edge color - typically black
+                    material.color = Color.black;
+                    break;
+                default:
+                    // Map LDraw color codes to Unity colors
+                    material.color = GetUnityColorFromLDrawCode(colorCode);
+                    break;
+            }
+
+            renderer.sharedMaterial = material;
+        }
+
+        private Color GetUnityColorFromLDrawCode(int colorCode)
+        {
+            // Basic LDraw color mapping - this could be expanded
+            return colorCode switch
+            {
+                0 => Color.black,       // Black
+                1 => Color.blue,        // Blue
+                2 => Color.green,       // Green
+                3 => Color.cyan,        // Dark Cyan
+                4 => Color.red,         // Red
+                5 => Color.magenta,     // Magenta
+                6 => new Color(0.4f, 0.2f, 0), // Brown
+                7 => Color.gray,        // Light Gray
+                8 => new Color(0.4f, 0.4f, 0.35f), // Dark Gray
+                9 => new Color(0, 0.5f, 1), // Light Blue
+                10 => new Color(0.2f, 1, 0.4f), // Light Green
+                11 => new Color(0.67f, 0.99f, 0.98f), // Light Cyan
+                12 => new Color(1, 0, 0), // Bright Red
+                13 => new Color(1, 0.69f, 0.8f), // Light Magenta
+                14 => Color.yellow,     // Yellow
+                15 => Color.white,      // White
+                _ => Color.gray         // Default to gray for unknown colors
+            };
+        }
+    }
+}

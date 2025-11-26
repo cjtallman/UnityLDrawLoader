@@ -7,52 +7,16 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace LDraw
+namespace LDraw.Editor
 {
-    public class PartMesh
+    public class PartMeshData
     {
-        public Mesh Mesh { get; private set; }
-        public Attribution Attribution { get; private set; }
-        public List<string> SourceFiles { get; private set; }
-        
+        public float SmoothingAngleThreshold { get; set; } = 30f;
+        private Mesh Mesh { get; set; } = new Mesh();
         private List<Vector3> vertices = new List<Vector3>();
         private List<int> triangles = new List<int>();
-        
-        public float SmoothingAngleThreshold { get; set; } = 30f;
 
-        public PartMesh()
-        {
-            Mesh = new Mesh();
-            Attribution = new Attribution();
-            SourceFiles = new List<string>();
-        }
-
-        public void LoadFromFile(string filePath, string libraryPath)
-        {
-            // Implementation for loading mesh data from an LDraw file.
-            // This is a placeholder for actual loading logic.
-            SourceFiles.Add(filePath);
-
-            // Only accept .dat files for part meshes.
-            if (!filePath.EndsWith(".dat", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new ArgumentException("Only .dat files are supported for part meshes.", nameof(filePath));
-            }
-
-            try {
-                // Flip the Y axis to convert from LDraw to Unity coordinate system.
-                Matrix4x4 transform = Matrix4x4.Scale(new Vector3(1, -1, 1));
-
-                DatFile file = new DatFile(filePath, libraryPath, this);
-                file.Load(transform);
-            } catch (Exception ex) {
-                throw new InvalidOperationException($"Failed to load part mesh from file: {filePath}", ex);
-            }
-
-            GenerateMesh();
-        }
-
-        private void GenerateMesh()
+        public Mesh GenerateMesh()
         {
             var scaledVertices = new List<Vector3>(vertices.Count);
             foreach (var vertex in vertices)
@@ -60,14 +24,16 @@ namespace LDraw
                 // Scale from LDraw units (1 LDU = 0.4 mm) to Unity units (1 unit = 1 meter).
                 scaledVertices.Add(vertex * 0.0004f);
             }
-            
-            Mesh.Clear();
+
+            Mesh = new();
             Mesh.SetVertices(scaledVertices);
             Mesh.SetTriangles(triangles, 0);
             Mesh.RecalculateBounds();
             
             // Calculate normals using original-scale vertices (to avoid degenerate triangles)
             CalculateNormalsWithAngleThreshold(vertices);
+
+            return Mesh;
         }
         
         private void CalculateNormalsWithAngleThreshold(List<Vector3> verts)
