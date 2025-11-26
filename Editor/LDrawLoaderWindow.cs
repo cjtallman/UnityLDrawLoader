@@ -27,6 +27,7 @@ namespace LDraw.Editor
         private float smoothingAngleThreshold = 30f;
         private List<LDrawColor> ldrawColors = new List<LDrawColor>();
         private int selectedColorIndex = -1;
+        private Color selectedRowColor = new Color(0.13f, 0.13f, 0.13f, 1f);
 
         private const int ITEMS_PER_PAGE = 50;
         private int currentPage = 0;
@@ -266,29 +267,30 @@ namespace LDraw.Editor
                 EditorGUILayout.Space();
 
                 // ListView-style selection with pagination
-                scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, GUILayout.Height(250));
+                scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, GUILayout.Height(300));
 
                 for (int i = startIndex; i < endIndex; i++)
                 {
                     string fileName = Path.GetFileName(filteredFiles[i]);
                     bool isSelected = (filteredFiles[i] == selectedFilePath);
-                    Rect itemRect = EditorGUILayout.BeginHorizontal(GUILayout.Height(24));
+                    Rect rowRect = EditorGUILayout.BeginHorizontal(GUILayout.Height(24));
 
-                    // Highlight selected item background
+                    // Draw selection background if selected
                     if (isSelected)
                     {
-                        GUI.color = new Color(0.2f, 0.4f, 0.8f, 1f); // Medium blue
-                        GUI.DrawTexture(itemRect, Texture2D.whiteTexture);
+                        GUI.color = selectedRowColor;
+                        GUI.DrawTexture(rowRect, Texture2D.whiteTexture);
                         GUI.color = Color.white;
                     }
 
-                    // Click to select
-                    if (GUILayout.Button(fileName, EditorStyles.label, GUILayout.ExpandWidth(true), GUILayout.Height(24)))
+                    // Detect click
+                    if (Event.current.type == EventType.MouseDown && rowRect.Contains(Event.current.mousePosition))
                     {
                         selectedFilePath = filteredFiles[i];
-                        // Force repaint to update selection highlighting
                         Repaint();
                     }
+
+                    EditorGUILayout.LabelField(fileName, GUILayout.ExpandWidth(true));
 
                     EditorGUILayout.EndHorizontal();
                 }
@@ -356,27 +358,58 @@ namespace LDraw.Editor
             {
                 EditorGUILayout.LabelField($"Loaded {ldrawColors.Count} solid colors from LDConfig.ldr");
 
-                colorScrollPosition = EditorGUILayout.BeginScrollView(colorScrollPosition, GUILayout.Height(150));
+                // Multi-column list view header
+                EditorGUILayout.BeginHorizontal(EditorStyles.helpBox);
+                EditorGUILayout.LabelField("", GUILayout.Width(20)); // Color column header
+                EditorGUILayout.LabelField("Code", GUILayout.Width(50));
+                EditorGUILayout.LabelField("Name", GUILayout.Width(120));
+                EditorGUILayout.LabelField("HEX Value", GUILayout.ExpandWidth(true));
+                EditorGUILayout.EndHorizontal();
+                
+                colorScrollPosition = EditorGUILayout.BeginScrollView(colorScrollPosition, GUILayout.Height(300));
 
+
+                // Color list items
                 for (int i = 0; i < ldrawColors.Count; i++)
                 {
                     var color = ldrawColors[i];
-                    EditorGUILayout.BeginHorizontal();
-
-                    // Radio button selection
                     bool isSelected = (i == selectedColorIndex);
-                    bool newSelected = GUILayout.Toggle(isSelected, "", EditorStyles.radioButton, GUILayout.Width(20));
-                    if (newSelected && !isSelected)
+
+                    // Get the rect for the current row position
+                    Rect rowRect = EditorGUILayout.BeginHorizontal(GUILayout.Height(24));
+
+                    // Draw selection background if selected
+                    if (isSelected)
                     {
-                        selectedColorIndex = i;
+                        GUI.color = selectedRowColor;
+                        GUI.DrawTexture(rowRect, Texture2D.whiteTexture);
+                        GUI.color = Color.white;
                     }
 
-                    // Color preview box
-                    Rect colorRect = GUILayoutUtility.GetRect(20, 20, GUILayout.Width(20), GUILayout.Height(20));
-                    EditorGUI.DrawRect(colorRect, color.Color);
+                    // Detect click
+                    if (Event.current.type == EventType.MouseDown && rowRect.Contains(Event.current.mousePosition))
+                    {
+                        selectedColorIndex = i;
+                        Repaint();
+                    }
 
-                    EditorGUILayout.LabelField($"{color.Code}: {color.Name}", GUILayout.Width(200));
-                    EditorGUILayout.LabelField($"HEX: #{ColorUtility.ToHtmlStringRGB(color.Color)}", GUILayout.ExpandWidth(true));
+                    // Draw content on top of the transparent button
+                    // Color preview box (aligned with header)
+                    Rect colorRect = GUILayoutUtility.GetRect(20, 20, GUILayout.Width(20), GUILayout.Height(20));
+                    colorRect.y = rowRect.y + 2; // Center vertically in the 24px row
+                    EditorGUI.DrawRect(colorRect, color.Color);
+                    GUILayout.Space(4); // Add spacing after color box
+
+                    // Code column (aligned with header)
+                    EditorGUILayout.LabelField(color.Code.ToString(), GUILayout.Width(50));
+                    GUILayout.Space(5);
+
+                    // Name column (aligned with header)
+                    EditorGUILayout.LabelField(color.Name, GUILayout.Width(120));
+                    GUILayout.Space(5);
+
+                    // HEX column (aligned with header)
+                    EditorGUILayout.LabelField($"#{ColorUtility.ToHtmlStringRGB(color.Color)}", GUILayout.ExpandWidth(true));
 
                     EditorGUILayout.EndHorizontal();
                 }
