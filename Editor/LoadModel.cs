@@ -75,6 +75,9 @@ namespace LDraw.Editor
         /// <returns>The root GameObject of the loaded model.</returns>
         public GameObject LoadModelFromFile()
         {
+            // Clear material cache to ensure fresh color loading
+            LoadMaterial.ClearCache();
+            
             ParseFile();
 
             string modelName = Path.GetFileNameWithoutExtension(FilePath);
@@ -276,50 +279,10 @@ namespace LDraw.Editor
 
         private void AssignMaterial(MeshRenderer renderer, int colorCode)
         {
-            Material material = new Material(Shader.Find("Standard"));
-
-            switch (colorCode)
-            {
-                case 16:
-                    // Main color - use default gray
-                    material.color = Color.gray;
-                    break;
-                case 24:
-                    // Edge color - typically black
-                    material.color = Color.black;
-                    break;
-                default:
-                    // Map LDraw color codes to Unity colors
-                    material.color = GetUnityColorFromLDrawCode(colorCode);
-                    break;
-            }
-
+            Material material = LoadMaterial.GetMaterialForColor(colorCode, LibraryPath);
             renderer.sharedMaterial = material;
         }
 
-        private Color GetUnityColorFromLDrawCode(int colorCode)
-        {
-            // Basic LDraw color mapping - this could be expanded
-            return colorCode switch
-            {
-                0 => Color.black,       // Black
-                1 => Color.blue,        // Blue
-                2 => Color.green,       // Green
-                3 => Color.cyan,        // Dark Cyan
-                4 => Color.red,         // Red
-                5 => Color.magenta,     // Magenta
-                6 => new Color(0.4f, 0.2f, 0), // Brown
-                7 => Color.gray,        // Light Gray
-                8 => new Color(0.4f, 0.4f, 0.35f), // Dark Gray
-                9 => new Color(0, 0.5f, 1), // Light Blue
-                10 => new Color(0.2f, 1, 0.4f), // Light Green
-                11 => new Color(0.67f, 0.99f, 0.98f), // Light Cyan
-                12 => new Color(1, 0, 0), // Bright Red
-                13 => new Color(1, 0.69f, 0.8f), // Light Magenta
-                14 => Color.yellow,     // Yellow
-                15 => Color.white,      // White
-                _ => Color.gray         // Default to gray for unknown colors
-            };
-        }
+
     }
 }
