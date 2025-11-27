@@ -17,8 +17,6 @@ namespace LDraw.Editor
     {
         private const string CACHE_PREF_KEY = "LDrawLoader_LibraryPath";
         private const string CACHE_FILE_KEY = "LDrawLoader_CachedFiles";
-        private const string SHOW_DUPLICATE_DIALOG_KEY = "LDrawLoader_ShowDuplicateDialog";
-        private const string SMOOTHING_ANGLE_KEY = "LDrawLoader_SmoothingAngle";
 
         private string libraryPath = "";
         private string selectedFilePath = "";
@@ -33,8 +31,6 @@ namespace LDraw.Editor
         private string[] filteredFiles;
         private string searchFilter = "";
         private bool isScanning = false;
-        private bool showDuplicateDialog = true;
-        private float smoothingAngleThreshold = 30f;
         private List<LoadMaterial.LDrawColor> ldrawColors = new List<LoadMaterial.LDrawColor>();
         private int selectedColorIndex = -1;
         private Color selectedRowColor = new Color(0.13f, 0.13f, 0.13f, 1f);
@@ -194,7 +190,7 @@ namespace LDraw.Editor
                     partsListTab = GUILayout.Toolbar(partsListTab, partsListTabNames);
                     EditorGUILayout.Space();
 
-                    modelPartsScrollPosition = EditorGUILayout.BeginScrollView(modelPartsScrollPosition, GUILayout.Height(200));
+                    modelPartsScrollPosition = EditorGUILayout.BeginScrollView(modelPartsScrollPosition, GUILayout.ExpandHeight(true));
 
                     switch (partsListTab)
                     {
@@ -213,7 +209,7 @@ namespace LDraw.Editor
                     EditorGUILayout.HelpBox("Parts used in the model will be listed here.", MessageType.Info);
                 }
 
-                EditorGUILayout.Space();
+                GUILayout.FlexibleSpace();
 
                 // Load Model Button (bottom)
                 GUI.enabled = !string.IsNullOrEmpty(selectedModelFilePath);
@@ -317,7 +313,7 @@ namespace LDraw.Editor
                 EditorGUILayout.Space();
 
                 // ListView-style selection with pagination
-                scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, GUILayout.Height(300));
+                scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition, GUILayout.ExpandHeight(true));
 
                 for (int i = startIndex; i < endIndex; i++)
                 {
@@ -356,7 +352,7 @@ namespace LDraw.Editor
                 EditorGUILayout.HelpBox("No .dat files found in selected folder.", MessageType.Info);
             }
 
-            EditorGUILayout.Space();
+            GUILayout.FlexibleSpace();
 
             // Selected File Display
             if (!string.IsNullOrEmpty(selectedFilePath))
@@ -364,30 +360,6 @@ namespace LDraw.Editor
                 EditorGUILayout.LabelField("Selected File:", EditorStyles.boldLabel);
                 EditorGUILayout.SelectableLabel(NormalizePathForDisplay(selectedFilePath), GUILayout.Height(20));
             }
-
-            EditorGUILayout.Space();
-
-            // Options Section
-            EditorGUILayout.LabelField("Options", EditorStyles.boldLabel);
-
-            EditorGUILayout.BeginHorizontal();
-            bool newShowDialog = EditorGUILayout.Toggle("Show Duplicate Dialog", showDuplicateDialog);
-            if (newShowDialog != showDuplicateDialog)
-            {
-                showDuplicateDialog = newShowDialog;
-                EditorPrefs.SetBool(SHOW_DUPLICATE_DIALOG_KEY, showDuplicateDialog);
-            }
-            EditorGUILayout.EndHorizontal();
-
-            // Smoothing settings
-            EditorGUILayout.BeginHorizontal();
-            float newSmoothingAngle = EditorGUILayout.Slider("Smoothing Angle", smoothingAngleThreshold, 0f, 180f);
-            if (Mathf.Abs(newSmoothingAngle - smoothingAngleThreshold) > 0.01f)
-            {
-                smoothingAngleThreshold = newSmoothingAngle;
-                EditorPrefs.SetFloat(SMOOTHING_ANGLE_KEY, smoothingAngleThreshold);
-            }
-            EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space();
 
@@ -416,7 +388,7 @@ namespace LDraw.Editor
                 EditorGUILayout.LabelField("HEX Value", GUILayout.ExpandWidth(true));
                 EditorGUILayout.EndHorizontal();
 
-                colorScrollPosition = EditorGUILayout.BeginScrollView(colorScrollPosition, GUILayout.Height(300));
+                colorScrollPosition = EditorGUILayout.BeginScrollView(colorScrollPosition, GUILayout.ExpandHeight(true));
 
 
                 // Color list items
@@ -471,13 +443,13 @@ namespace LDraw.Editor
                 EditorGUILayout.HelpBox("No LDConfig.ldr found or no solid colors loaded.", MessageType.Info);
             }
 
-            EditorGUILayout.Space();
+            GUILayout.FlexibleSpace();
 
             // Load Material Button (bottom)
             GUI.enabled = selectedColorIndex >= 0 && selectedColorIndex < ldrawColors.Count;
             if (GUILayout.Button("Load Material", GUILayout.Height(30)))
             {
-                LoadMaterial.CreateMaterialFromColor(ldrawColors[selectedColorIndex], showDuplicateDialog);
+                LoadMaterial.CreateMaterialFromColor(ldrawColors[selectedColorIndex], true);
             }
             GUI.enabled = true;
         }
@@ -602,8 +574,6 @@ namespace LDraw.Editor
         private void LoadCachedData()
         {
             libraryPath = EditorPrefs.GetString(CACHE_PREF_KEY, "");
-            showDuplicateDialog = EditorPrefs.GetBool(SHOW_DUPLICATE_DIALOG_KEY, true);
-            smoothingAngleThreshold = EditorPrefs.GetFloat(SMOOTHING_ANGLE_KEY, 30f);
 
             if (!string.IsNullOrEmpty(libraryPath) && Directory.Exists(libraryPath))
             {
