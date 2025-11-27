@@ -1,3 +1,9 @@
+// Author: cjtallman
+// Copyright (c) 2025 Chris Tallman
+// Last Modified: 2025/11/26
+// License: MIT License
+// Summary: Add a debug helper gizmo for mesh vertex normals
+
 using UnityEngine;
 using UnityEditor;
 

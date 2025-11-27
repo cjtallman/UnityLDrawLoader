@@ -1,15 +1,8 @@
-/// <summary>
-/// Loads a .dat LDraw file.
-/// </summary>
-/// <details>
-/// This class is responsible for loading and parsing .dat files
-/// in the LDraw file format. It reads the file line by line,
-/// interprets the line types, and constructs the corresponding
-/// geometric primitives and sub-file references.
-///
-/// See https://www.ldraw.org/article/218.html for more information.
-/// </details>
-
+// Author: cjtallman
+// Copyright (c) 2025 Chris Tallman
+// Last Modified: 2025/11/26
+// License: MIT License
+// Summary: Load LDraw .dat files
 
 using System;
 using System.IO;
@@ -19,13 +12,11 @@ using UnityEngine;
 
 namespace LDraw.Editor
 {
-
     public class DatFile
     {
         private PartMeshData Part;
         private string FilePath;
         private string LibraryPath;
-        private bool IsCcw = true;
         private bool Invert = false;
         private bool InvertNext = false;
         private Matrix4x4 CurrentTransform = Matrix4x4.identity;
@@ -244,31 +235,6 @@ namespace LDraw.Editor
             string command = match.Groups[1].Value.ToUpperInvariant();
             switch (command)
             {
-                case "NOCERTIFY":
-                    break;
-                case string s when s.StartsWith("CERTIFY"):
-                    if (match.Groups[2].Success)
-                    {
-                        string orientation = match.Groups[2].Value.ToUpperInvariant();
-                        IsCcw = orientation == "CCW";
-                    }
-                    break;
-                case "CW":
-                    IsCcw = false;
-                    break;
-                case "CCW":
-                    IsCcw = true;
-                    break;
-                case string s when s.StartsWith("CLIP"):
-                    if (match.Groups[4].Success)
-                    {
-                        string clipOrientation = match.Groups[4].Value.ToUpperInvariant();
-                        IsCcw = clipOrientation == "CCW";
-                    }
-                    break;
-                case "NOCLIP":
-                    // Handle NOCLIP
-                    break;
                 case "INVERTNEXT":
                     InvertNext = true;
                     break;

@@ -1,4 +1,9 @@
-using System;
+// Author: cjtallman
+// Copyright (c) 2025 Chris Tallman
+// Last Modified: 2025/11/26
+// License: MIT License
+// Summary: Manage global LDraw settings
+
 using System.IO;
 using UnityEditor;
 

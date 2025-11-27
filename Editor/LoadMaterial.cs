@@ -1,9 +1,15 @@
-using UnityEngine;
-using UnityEditor;
+// Author: cjtallman
+// Copyright (c) 2025 Chris Tallman
+// Last Modified: 2025/11/26
+// License: MIT License
+// Summary: Load LDraw colors and materials
+
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using UnityEngine;
+using UnityEditor;
 
 namespace LDraw.Editor
 {
@@ -16,8 +22,6 @@ namespace LDraw.Editor
         URP,
         HDRP
     }
-
-
 
     /// <summary>
     /// Handles loading and creation of LDraw materials from color definitions

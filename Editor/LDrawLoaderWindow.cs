@@ -1,9 +1,15 @@
-using UnityEngine;
-using UnityEditor;
+// Author: cjtallman
+// Copyright (c) 2025 Chris Tallman
+// Last Modified: 2025/11/26
+// License: MIT License
+// Summary: GUI for loading LDraw parts
+
 using System;
 using System.IO;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEditor;
+using UnityEngine;
 
 namespace LDraw.Editor
 {
@@ -813,47 +819,12 @@ namespace LDraw.Editor
         {
             try
             {
-                // Check if asset already exists
-                string fileName = Path.GetFileNameWithoutExtension(selectedFilePath);
-                string partsFolder = LDrawSettings.PartAssetsFolder;
-                string assetPath = $"{partsFolder}/{fileName}_mesh.asset";
-
-                // Ensure Parts folder exists
-                LDrawSettings.EnsureAssetsFolderExists(partsFolder);
-
-                Mesh existingMesh = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
-                if (existingMesh != null)
-                {
-                    if (showDuplicateDialog)
-                    {
-                        EditorUtility.DisplayDialog("Asset Already Exists",
-                            $"Mesh asset already exists at:\n{assetPath}\n\nDelete it first if you want to recreate it.",
-                            "OK");
-                    }
-
-                    // Ping the existing asset
-                    EditorGUIUtility.PingObject(existingMesh);
-                    return;
-                }
-
                 Mesh partMesh = DatFile.LoadMeshFromFile(selectedFilePath, libraryPath);
-
-                if (partMesh == null)
+                if (partMesh != null)
                 {
-                    EditorUtility.ClearProgressBar();
-                    EditorUtility.DisplayDialog("Load Failed", "PartMesh.Mesh is null after loading.", "OK");
-                    return;
+                    // Ping the asset in the project window
+                    EditorGUIUtility.PingObject(partMesh);
                 }
-
-                // Create mesh asset
-                AssetDatabase.CreateAsset(partMesh, assetPath);
-                AssetDatabase.SaveAssets();
-
-                EditorUtility.ClearProgressBar();
-                EditorUtility.DisplayDialog("Success", $"Mesh created at:\n{assetPath}", "OK");
-
-                // Ping the asset in the project window
-                EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<Mesh>(assetPath));
             }
             catch (System.Exception ex)
             {

@@ -1,10 +1,10 @@
-/// <summary>
-/// Represent LDraw part mesh data.
-/// </summary>
+// Author: cjtallman
+// Copyright (c) 2025 Chris Tallman
+// Last Modified: 2025/11/26
+// License: MIT License
+// Summary: Container for loading LDraw mesh data
 
-using System;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
 namespace LDraw.Editor

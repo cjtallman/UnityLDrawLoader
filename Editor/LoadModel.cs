@@ -1,14 +1,8 @@
-/// <summary>
-/// Loads a .ldr LDraw file.
-/// </summary>
-/// <details>
-/// This class is responsible for loading and parsing .ldr files
-/// in the LDraw file format. It reads the file line by line,
-/// interprets the line types, and constructs the corresponding
-/// GameObject hierarchy with each part as a separate child.
-///
-/// See https://www.ldraw.org/article/218.html for more information.
-/// </details>
+// Author: cjtallman
+// Copyright (c) 2025 Chris Tallman
+// Last Modified: 2025/11/26
+// License: MIT License
+// Summary: Load LDraw .ldr files
 
 using System;
 using System.Collections.Generic;
