@@ -1,6 +1,6 @@
 // Author: cjtallman
 // Copyright (c) 2025 Chris Tallman
-// Last Modified: 2025/11/26
+// Last Modified: 2025/11/27
 // License: MIT License
 // Summary: Load LDraw .ldr files
 
@@ -22,7 +22,7 @@ namespace LDraw.Editor
         public string FileName { get; set; }
         public int Color { get; set; }
         public Vector3 Position { get; set; }
-        public Matrix4x4 Transform { get; set; }
+        public Quaternion Rotation { get; set; }
         public GameObject GameObject { get; set; }
     }
 
@@ -223,27 +223,16 @@ namespace LDraw.Editor
             transform.SetRow(2, new Vector4(g, h, i, z));
             transform.SetRow(3, new Vector4(0, 0, 0, 1));
 
-            // Apply LDU to Unity units scaling and Y-axis flip for positioning only
-            // 1 LDU = 0.4 mm = 0.0004 meters (Unity units)
-            Matrix4x4 lduScaling = Matrix4x4.Scale(new Vector3(0.0004f, 0.0004f, 0.0004f));
-            Matrix4x4 positionTransform = lduScaling * transform;
-
-            // Apply Y-axis flip to position only (not rotation)
-            Vector3 scaledPosition = positionTransform.GetColumn(3);
-            scaledPosition.y = -scaledPosition.y;
-
-            // Extract rotation matrix (3x3 part) and apply scaling only
-            Matrix4x4 rotationMatrix = Matrix4x4.identity;
-            rotationMatrix.SetColumn(0, transform.GetColumn(0) * 0.0004f);
-            rotationMatrix.SetColumn(1, transform.GetColumn(1) * 0.0004f);
-            rotationMatrix.SetColumn(2, transform.GetColumn(2) * 0.0004f);
+            Quaternion rotation = transform.rotation;
+            rotation.w = -rotation.w;
+            rotation.y = -rotation.y;
 
             LDrawPart part = new LDrawPart
             {
                 FileName = fileName,
                 Color = color,
-                Position = scaledPosition,
-                Transform = rotationMatrix
+                Position = new Vector3(x, -y, z) * LDrawSettings.ScaleFactor,
+                Rotation = rotation,
             };
 
             Parts.Add(part);
@@ -296,7 +285,7 @@ namespace LDraw.Editor
             }
 
             partObject.transform.position = part.Position;
-            partObject.transform.rotation = part.Transform.rotation;
+            partObject.transform.rotation = part.Rotation;
 
             part.GameObject = partObject;
         }

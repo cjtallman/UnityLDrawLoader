@@ -1,6 +1,6 @@
 // Author: cjtallman
 // Copyright (c) 2025 Chris Tallman
-// Last Modified: 2025/11/26
+// Last Modified: 2025/11/27
 // License: MIT License
 // Summary: Container for loading LDraw mesh data
 
@@ -22,7 +22,7 @@ namespace LDraw.Editor
             foreach (var vertex in vertices)
             {
                 // Scale from LDraw units (1 LDU = 0.4 mm) to Unity units (1 unit = 1 meter).
-                scaledVertices.Add(vertex * 0.0004f);
+                scaledVertices.Add(vertex * LDrawSettings.ScaleFactor);
             }
 
             Mesh = new();
