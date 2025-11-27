@@ -1,10 +1,9 @@
 {
-  "name": "com.ctallman.ldrawloader",
+  "name": "com.cjtallman.ldrawloader",
   "version": "0.1.0",
   "displayName": "LDraw Loader",
   "description": "Editor tool for loading LDraw (.ldr, .mpd, .dat) files into Unity scenes",
   "documentationUrl": "https://github.com/cjtallman/UnityLDrawLoader",
-  "changelogUrl": "https://github.com/cjtallman/UnityLDrawLoader/blob/main/CHANGELOG.md",
   "licensesUrl": "https://github.com/cjtallman/UnityLDrawLoader/blob/main/LICENSE.md",
   "keywords": [
     "LDraw",
