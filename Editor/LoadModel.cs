@@ -13,6 +13,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
@@ -37,9 +38,14 @@ namespace LDraw.Editor
         private readonly string LibraryPath;
         private readonly List<LDrawPart> Parts = new List<LDrawPart>();
 
+        public string ModelName => Path.GetFileNameWithoutExtension(FilePath);
+        public string ModelDescription { get; private set; } = "";
+        public string ModelAuthor { get; private set; } = "";
+        public IReadOnlyList<LDrawPart> ModelParts => Parts.AsReadOnly();
+
         public LdrFile(string filePath, string libraryPath)
         {
-            if (!filePath.EndsWith(".ldr", StringComparison.OrdinalIgnoreCase) && 
+            if (!filePath.EndsWith(".ldr", StringComparison.OrdinalIgnoreCase) &&
                 !filePath.EndsWith(".mpd", StringComparison.OrdinalIgnoreCase))
             {
                 throw new ArgumentException("Only .ldr and .mpd files are supported.", nameof(filePath));
@@ -77,7 +83,7 @@ namespace LDraw.Editor
         {
             // Clear material cache to ensure fresh color loading
             LoadMaterial.ClearCache();
-            
+
             ParseFile();
 
             string modelName = Path.GetFileNameWithoutExtension(FilePath);
@@ -118,7 +124,7 @@ namespace LDraw.Editor
             return prefab;
         }
 
-        private void ParseFile()
+        public void ParseFile()
         {
             Parts.Clear();
 
@@ -155,7 +161,31 @@ namespace LDraw.Editor
 
         private void HandleComment(string line)
         {
-            // Comments and META commands are ignored for model loading
+            string[] tokens = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (tokens.Length < 2)
+                return;
+
+            // Sanity check: We shouldn't get here without a '0' at the start.
+            if (tokens[0] != "0")
+                return;
+
+            switch (tokens[1].ToUpperInvariant())
+            {
+                case "!MODEL":
+                    if (tokens.Length > 2 && string.IsNullOrEmpty(ModelDescription))
+                        ModelDescription = string.Join(" ", tokens.Skip(2));
+                    break;
+                case "!AUTHOR":
+                    if (tokens.Length > 2 && string.IsNullOrEmpty(ModelAuthor))
+                        ModelAuthor = string.Join(" ", tokens.Skip(2));
+                    break;
+                case "AUTHOR:":
+                    if (tokens.Length > 2 && string.IsNullOrEmpty(ModelAuthor))
+                        ModelAuthor = string.Join(" ", tokens.Skip(2));
+                    break;
+                default:
+                    break;
+            }
         }
 
         private void HandleSubFile(string line)
@@ -203,11 +233,11 @@ namespace LDraw.Editor
             // 1 LDU = 0.4 mm = 0.0004 meters (Unity units)
             Matrix4x4 lduScaling = Matrix4x4.Scale(new Vector3(0.0004f, 0.0004f, 0.0004f));
             Matrix4x4 positionTransform = lduScaling * transform;
-            
+
             // Apply Y-axis flip to position only (not rotation)
             Vector3 scaledPosition = positionTransform.GetColumn(3);
             scaledPosition.y = -scaledPosition.y;
-            
+
             // Extract rotation matrix (3x3 part) and apply scaling only
             Matrix4x4 rotationMatrix = Matrix4x4.identity;
             rotationMatrix.SetColumn(0, transform.GetColumn(0) * 0.0004f);

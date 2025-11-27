@@ -7,10 +7,11 @@ An editor tool for loading LDraw files into a Unity project.
 - [x] Load `.ldr`, `.mpd`, and `.dat` files from the LDraw parts library.
 - [x] Asset caching for faster part loading.
 - [x] Load URP compatible materials.
-- [ ] Load HDRP compatible materials. (In progress)
+- [X] Load HDRP compatible materials.
+- [X] Load Built-in Render Pipeline compatible materials.
+- [x] Support for fancy colors like transparent and rubber.
+- [x] Automatic material assignment based on .ldr file color codes.
 - [ ] Load stickers/textures from LDraw files. (In progress)
-- [ ] Automatic material assignment based on .ldr file color codes. (Planned)
-- [ ] Support for fancy colors like transparent and rubber. (Planned)
 
 ## Usage
 

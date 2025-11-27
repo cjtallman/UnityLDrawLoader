@@ -13,17 +13,21 @@ namespace LDraw.Editor
         private const string CACHE_FILE_KEY = "LDrawLoader_CachedFiles";
         private const string SHOW_DUPLICATE_DIALOG_KEY = "LDrawLoader_ShowDuplicateDialog";
         private const string SMOOTHING_ANGLE_KEY = "LDrawLoader_SmoothingAngle";
-        
+
         private string libraryPath = "";
         private string selectedFilePath = "";
         private string selectedModelFilePath = "";
+        private LdrFile currentModelFile = null;
         private Vector2 scrollPosition;
+        private Vector2 modelPartsScrollPosition;
+        private int partsListTab = 0;
+        private readonly string[] partsListTabNames = { "By Count", "By Color" };
         private Vector2 colorScrollPosition;
         private string[] datFiles;
         private string[] filteredFiles;
         private string searchFilter = "";
         private bool isScanning = false;
-private bool showDuplicateDialog = true;
+        private bool showDuplicateDialog = true;
         private float smoothingAngleThreshold = 30f;
         private List<LoadMaterial.LDrawColor> ldrawColors = new List<LoadMaterial.LDrawColor>();
         private int selectedColorIndex = -1;
@@ -36,9 +40,7 @@ private bool showDuplicateDialog = true;
         private int selectedTab = 0;
         private readonly string[] tabNames = { "📁 Model Loader", "🧩 Part Loader", "🎨 Material Loader" };
 
-        // Model loader state
-        private bool createPrefab = false;
-        private string prefabName = "";
+
 
         /// <summary>
         /// Normalizes directory separators for consistent display in the GUI
@@ -82,6 +84,7 @@ private bool showDuplicateDialog = true;
                     libraryPath = path;
                     selectedFilePath = "";
                     selectedModelFilePath = "";
+                    currentModelFile = null;
                     LoadDatFiles();
                 }
             }
@@ -90,6 +93,7 @@ private bool showDuplicateDialog = true;
             {
                 selectedFilePath = "";
                 selectedModelFilePath = "";
+                currentModelFile = null;
                 LoadDatFiles();
             }
             GUI.enabled = true;
@@ -148,6 +152,7 @@ private bool showDuplicateDialog = true;
                     if (!string.IsNullOrEmpty(modelPath))
                     {
                         selectedModelFilePath = modelPath;
+                        ParseSelectedModel();
                         Debug.Log($"Model file selected: {modelPath}");
                     }
                 }
@@ -157,31 +162,50 @@ private bool showDuplicateDialog = true;
 
                 // Model Information Section
                 EditorGUILayout.LabelField("Model Information", EditorStyles.boldLabel);
-                EditorGUILayout.HelpBox("Model file information will appear here once a file is selected.", MessageType.Info);
-
-EditorGUILayout.Space();
-
-                // Prefab Creation Options
-                EditorGUILayout.LabelField("Prefab Options", EditorStyles.boldLabel);
-                createPrefab = EditorGUILayout.Toggle("Create Prefab", createPrefab);
-                if (createPrefab)
+                if (currentModelFile != null)
                 {
-                    EditorGUILayout.BeginHorizontal();
-                    EditorGUILayout.LabelField("Prefab Name:", GUILayout.Width(80));
-                    prefabName = EditorGUILayout.TextField(prefabName);
-                    EditorGUILayout.EndHorizontal();
-                    
-                    if (string.IsNullOrEmpty(prefabName))
-                    {
-                        EditorGUILayout.HelpBox("Enter a prefab name to enable prefab creation.", MessageType.Warning);
-                    }
+                    EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+                    EditorGUILayout.LabelField($"Name: {currentModelFile.ModelName}");
+                    if (!string.IsNullOrEmpty(currentModelFile.ModelDescription))
+                        EditorGUILayout.LabelField($"Description: {currentModelFile.ModelDescription}");
+                    if (!string.IsNullOrEmpty(currentModelFile.ModelAuthor))
+                        EditorGUILayout.LabelField($"Author: {currentModelFile.ModelAuthor}");
+                    EditorGUILayout.LabelField($"Parts Count: {currentModelFile.ModelParts.Count}");
+                    EditorGUILayout.EndVertical();
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox("Model file information will appear here once a file is selected.\n\nNote: Loading a model will automatically create a prefab asset in Assets/LDraw/Models/ using the model filename.", MessageType.Info);
                 }
 
                 EditorGUILayout.Space();
 
                 // Model Parts Section
                 EditorGUILayout.LabelField("Model Parts", EditorStyles.boldLabel);
-                EditorGUILayout.HelpBox("Parts used in the model will be listed here.", MessageType.Info);
+                if (currentModelFile != null && currentModelFile.ModelParts.Count > 0)
+                {
+                    // Parts list tabs
+                    partsListTab = GUILayout.Toolbar(partsListTab, partsListTabNames);
+                    EditorGUILayout.Space();
+
+                    modelPartsScrollPosition = EditorGUILayout.BeginScrollView(modelPartsScrollPosition, GUILayout.Height(200));
+
+                    switch (partsListTab)
+                    {
+                        case 0: // By Count
+                            DrawPartsByCount();
+                            break;
+                        case 1: // By Color
+                            DrawPartsByColor();
+                            break;
+                    }
+
+                    EditorGUILayout.EndScrollView();
+                }
+                else
+                {
+                    EditorGUILayout.HelpBox("Parts used in the model will be listed here.", MessageType.Info);
+                }
 
                 EditorGUILayout.Space();
 
@@ -385,7 +409,7 @@ EditorGUILayout.Space();
                 EditorGUILayout.LabelField("Name", GUILayout.Width(120));
                 EditorGUILayout.LabelField("HEX Value", GUILayout.ExpandWidth(true));
                 EditorGUILayout.EndHorizontal();
-                
+
                 colorScrollPosition = EditorGUILayout.BeginScrollView(colorScrollPosition, GUILayout.Height(300));
 
 
@@ -450,33 +474,116 @@ EditorGUILayout.Space();
                 LoadMaterial.CreateMaterialFromColor(ldrawColors[selectedColorIndex], showDuplicateDialog);
             }
             GUI.enabled = true;
-}
+        }
+
+        private void ParseSelectedModel()
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(selectedModelFilePath) || string.IsNullOrEmpty(libraryPath))
+                {
+                    currentModelFile = null;
+                    return;
+                }
+
+                currentModelFile = new LdrFile(selectedModelFilePath, libraryPath);
+                // Parse the file to extract model information and parts
+                currentModelFile.ParseFile();
+
+                // Force UI repaint
+                Repaint();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Failed to parse model: {ex.Message}");
+                currentModelFile = null;
+            }
+        }
+
+        private void DrawPartsByCount()
+        {
+            // Group parts by filename and count occurrences
+            var partGroups = currentModelFile.ModelParts
+                .GroupBy(p => p.FileName)
+                .OrderBy(g => g.Key)
+                .ToList();
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Part Number", GUILayout.Width(150));
+            EditorGUILayout.LabelField("Count", GUILayout.Width(60));
+            EditorGUILayout.EndHorizontal();
+
+            foreach (var group in partGroups)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField(Path.GetFileNameWithoutExtension(group.Key), GUILayout.Width(150));
+                EditorGUILayout.LabelField($"x{group.Count()}", GUILayout.Width(60));
+                EditorGUILayout.EndHorizontal();
+            }
+        }
+
+        private void DrawPartsByColor()
+        {
+            // Group parts by filename and color
+            var partColorGroups = currentModelFile.ModelParts
+                .GroupBy(p => new { p.FileName, p.Color })
+                .OrderBy(g => g.Key.Color)
+                .ThenBy(g => g.Key.FileName)
+                .ToList();
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUILayout.LabelField("Part Number", GUILayout.Width(150));
+            EditorGUILayout.LabelField("Color", GUILayout.Width(120));
+            EditorGUILayout.LabelField("Quantity", GUILayout.Width(60));
+            EditorGUILayout.EndHorizontal();
+
+            foreach (var group in partColorGroups)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.LabelField(Path.GetFileNameWithoutExtension(group.Key.FileName), GUILayout.Width(150));
+
+                var colorInfo = ldrawColors.FirstOrDefault(c => c.Code == group.Key.Color);
+                if (colorInfo != null)
+                {
+                    Rect colorRect = GUILayoutUtility.GetRect(20, 20, GUILayout.Width(20), GUILayout.Height(20));
+                    EditorGUI.DrawRect(colorRect, colorInfo.Color);
+                    GUILayout.Space(5);
+                    EditorGUILayout.LabelField(colorInfo.Name, GUILayout.Width(120));
+                }
+                else
+                {
+                    EditorGUILayout.LabelField($"Color: {group.Key.Color}", GUILayout.Width(120));
+                }
+
+                EditorGUILayout.LabelField($"x{group.Count()}", GUILayout.Width(60));
+                EditorGUILayout.EndHorizontal();
+            }
+        }
 
         private void LoadModel()
         {
             try
             {
-                LdrFile ldrFile = new LdrFile(selectedModelFilePath, libraryPath);
-                GameObject modelRoot = ldrFile.LoadModelFromFile();
-
-                if (createPrefab && !string.IsNullOrEmpty(prefabName))
+                if (currentModelFile == null)
                 {
-                    string prefabPath = $"{LDrawSettings.ModelAssetsFolder}/{prefabName}.prefab";
-                    GameObject prefab = LdrFile.CreatePrefabFromModel(modelRoot, prefabPath);
-                    Debug.Log($"Model loaded and prefab created: {prefabPath}");
-                    
-                    // Select the prefab in Project window
-                    Selection.activeObject = prefab;
-                    EditorGUIUtility.PingObject(prefab);
-                }
-                else
-                {
-                    Debug.Log($"Model loaded: {modelRoot.name}");
+                    currentModelFile = new LdrFile(selectedModelFilePath, libraryPath);
                 }
 
-                // Select the created model in hierarchy
-                Selection.activeGameObject = modelRoot;
-                EditorGUIUtility.PingObject(modelRoot);
+                GameObject modelRoot = currentModelFile.LoadModelFromFile();
+
+                // Automatically create prefab using model filename
+                string modelName = Path.GetFileNameWithoutExtension(selectedModelFilePath);
+                string prefabPath = $"{LDrawSettings.ModelAssetsFolder}/{modelName}.prefab";
+                GameObject prefab = LdrFile.CreatePrefabFromModel(modelRoot, prefabPath);
+
+                Debug.Log($"Model loaded and prefab created: {prefabPath}");
+
+                // Select prefab in Project window
+                Selection.activeObject = prefab;
+                EditorGUIUtility.PingObject(prefab);
+
+                // Clean up the scene object since we have a prefab
+                GameObject.DestroyImmediate(modelRoot);
             }
             catch (Exception ex)
             {
@@ -485,13 +592,13 @@ EditorGUILayout.Space();
             }
         }
 
-        
+
         private void LoadCachedData()
         {
             libraryPath = EditorPrefs.GetString(CACHE_PREF_KEY, "");
             showDuplicateDialog = EditorPrefs.GetBool(SHOW_DUPLICATE_DIALOG_KEY, true);
             smoothingAngleThreshold = EditorPrefs.GetFloat(SMOOTHING_ANGLE_KEY, 30f);
-            
+
             if (!string.IsNullOrEmpty(libraryPath) && Directory.Exists(libraryPath))
             {
                 string cachedFilesJson = EditorPrefs.GetString(CACHE_FILE_KEY, "");
@@ -529,7 +636,7 @@ EditorGUILayout.Space();
             {
                 isScanning = true;
                 Repaint();
-                
+
                 try
                 {
                     string partsPath = Path.Join(libraryPath, "parts");
@@ -710,25 +817,25 @@ EditorGUILayout.Space();
                 string fileName = Path.GetFileNameWithoutExtension(selectedFilePath);
                 string partsFolder = LDrawSettings.PartAssetsFolder;
                 string assetPath = $"{partsFolder}/{fileName}_mesh.asset";
-                
+
                 // Ensure Parts folder exists
                 LDrawSettings.EnsureAssetsFolderExists(partsFolder);
-                
+
                 Mesh existingMesh = AssetDatabase.LoadAssetAtPath<Mesh>(assetPath);
                 if (existingMesh != null)
                 {
                     if (showDuplicateDialog)
                     {
-                        EditorUtility.DisplayDialog("Asset Already Exists", 
-                            $"Mesh asset already exists at:\n{assetPath}\n\nDelete it first if you want to recreate it.", 
+                        EditorUtility.DisplayDialog("Asset Already Exists",
+                            $"Mesh asset already exists at:\n{assetPath}\n\nDelete it first if you want to recreate it.",
                             "OK");
                     }
-                    
+
                     // Ping the existing asset
                     EditorGUIUtility.PingObject(existingMesh);
                     return;
                 }
-                
+
                 Mesh partMesh = DatFile.LoadMeshFromFile(selectedFilePath, libraryPath);
 
                 if (partMesh == null)

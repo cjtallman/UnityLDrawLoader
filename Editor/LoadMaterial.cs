@@ -235,35 +235,8 @@ namespace LDraw.Editor
                     return;
                 }
 
-                // Create new material using URP Lit shader
-                Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-                if (shader == null)
-                {
-                    Debug.LogWarning("URP Lit shader not found, trying Standard shader");
-                    shader = Shader.Find("Standard");
-                }
-                if (shader == null)
-                {
-                    Debug.LogError("No suitable shader found!");
-                    EditorUtility.DisplayDialog("Shader Not Found", "Could not find URP Lit or Standard shader.", "OK");
-                    return;
-                }
-
-                Material material = new Material(shader);
-                material.name = $"{ldrawColor.Name}_{ldrawColor.Code}";
-
-                // Set URP Lit shader properties for LEGO-like plastic appearance
-                material.SetColor("_BaseColor", ldrawColor.Color);
-                material.SetFloat("_Smoothness", 0.65f); // Shiny plastic
-                material.SetFloat("_Metallic", 0.05f);   // Not metallic
-                material.SetFloat("_SpecularHighlights", 1.0f);
-                material.SetFloat("_EnvironmentReflections", 1.0f);
-
-                Debug.Log($"Created material with shader: {shader.name}, color: {ldrawColor.Color}");
-
-                // Create the asset
-                AssetDatabase.CreateAsset(material, materialPath);
-                AssetDatabase.SaveAssets();
+                // Create new material using the appropriate render pipeline
+                Material material = CreateNewMaterial(ldrawColor);
 
                 EditorUtility.DisplayDialog("Success", $"Material created at:\n{materialPath}", "OK");
                 EditorGUIUtility.PingObject(AssetDatabase.LoadAssetAtPath<Material>(materialPath));
@@ -328,13 +301,18 @@ namespace LDraw.Editor
         {
             RenderPipeline renderPipeline = GetCurrentRenderPipeline();
 
-            return renderPipeline switch
+            Material material = renderPipeline switch
             {
                 RenderPipeline.URP => CreateURPMaterial(ldrawColor),
                 RenderPipeline.HDRP => CreateHDRPMaterial(ldrawColor),
                 RenderPipeline.BuiltIn => CreateBuiltInMaterial(ldrawColor),
                 _ => CreateBuiltInMaterial(ldrawColor)
             };
+
+            // Save the material as an asset
+            SaveMaterialAsAsset(material, ldrawColor);
+
+            return material;
         }
 
         /// <summary>
@@ -1066,8 +1044,9 @@ namespace LDraw.Editor
                 _ => CreateBuiltInMaterial(specialColor)
             };
 
-            // Cache special material
+            // Cache special material and save as asset
             s_specialMaterials[colorCode] = material;
+            SaveMaterialAsAsset(material, specialColor);
             return material;
         }
 
@@ -1218,6 +1197,39 @@ namespace LDraw.Editor
             {
                 Debug.LogWarning($"Error detecting render pipeline {pipelineName}: {ex.Message}");
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Saves a material as an asset in the correct folder
+        /// </summary>
+        /// <param name="material">Material to save</param>
+        /// <param name="ldrawColor">LDraw color for naming</param>
+        private static void SaveMaterialAsAsset(Material material, LDrawColor ldrawColor)
+        {
+            try
+            {
+                // Create materials folder if it doesn't exist
+                string materialsFolder = LDrawSettings.MaterialAssetsFolder;
+                LDrawSettings.EnsureAssetsFolderExists(materialsFolder);
+
+                string materialPath = $"{materialsFolder}/{ldrawColor.Name}_{ldrawColor.Code}.mat";
+
+                // Check if material already exists
+                Material existingMaterial = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
+                if (existingMaterial != null)
+                {
+                    // Use existing material instead of creating duplicate
+                    return;
+                }
+
+                // Create the asset
+                AssetDatabase.CreateAsset(material, materialPath);
+                AssetDatabase.SaveAssets();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"Failed to save material asset for {ldrawColor.Name}: {ex}");
             }
         }
 
