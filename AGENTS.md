@@ -1,40 +1,25 @@
-# AGENTS.md
+# Unity LDraw Loader - Agent Development Guidelines
 
-## Build/Test Commands
-
-This Unity project uses standard Unity workflows. Tests are run through Unity Test Framework:
-
-- **Build**: Use Unity Editor > File > Build Settings or Unity command line: `Unity.exe -batchmode -quit -projectPath . -buildTarget StandaloneWindows -buildPath Build/`
-- **Run all tests**: Unity Editor > Window > General > Test Runner > Run All, or command line: `Unity.exe -batchmode -runTests -projectPath .`
-- **Run single test**: In Test Runner, find specific test and click Run, or use command line with filter: `Unity.exe -batchmode -runTests -projectPath . -testCategory "TestName"`
+This project provides the Unity editor with tools to load LDraw model and part files. To maintain code quality and consistency, follow these guidelines when contributing.
 
 ## Code Style Guidelines
 
-Follow the .editorconfig configuration in Assets/Packages/LDrawLoader/.editorconfig:
+- Use the rules in @.editorconfig to ensure consistent formatting across the codebase.
 
-### Formatting & Structure
-- 4 spaces indentation, no tabs
-- New line before all braces (all, else, catch, finally)
-- System using directives outside namespaces, sorted alphabetically
-- Insert final newlines, trim trailing whitespace
+## Guidelines for Contributions
 
-### Naming Conventions  
-- Private/internal fields: `_camelCase` with underscore prefix
-- Static fields: `s_camelCase` with s_ prefix
-- Constants: `PascalCase`
-- Public members: `PascalCase`
-- Avoid var unless type is apparent - use explicit types
+- Document new code with XML comments. Be brief but informative.
+- Break down large methods into smaller, reusable functions.
+- Value readability over cleverness.
+- Put large classes into separate files.
+- Identify and handle edge cases and errors gracefully.
 
-### Code Quality
-- Prefer readonly fields
-- Use object/collection initializers
-- Null propagation and coalescing preferred
-- Expression-bodied members where appropriate
-- Include XML documentation for public APIs
-- Follow Unity naming patterns for components and methods
+## References
 
-### Error Handling
-- Use specific exception types
-- Validate arguments and throw ArgumentException
-- Log Unity errors with Debug.LogError
-- Handle LDraw file parsing gracefully with custom exceptions
+- [LDraw File Format Specification](https://www.ldraw.org/article/218.html)
+- [Colour Definition (!COLOUR) Language Extension](https://www.ldraw.org/article/299.html)
+  - Quick Reference: https://www.ldraw.org/article/547.html
+- [Back Face Culling (BFC) Language Extension](https://www.ldraw.org/article/415.html)
+- [!CATEGORY and !KEYWORDS Language Extension](https://www.ldraw.org/article/340.html)
+- [Multi-Part Document (MPD) and Image Embedding (!DATA) Language Extension](https://www.ldraw.org/article/47.html)
+- [Texture Mapping (!TEXMAP) Language Extension](https://www.ldraw.org/texmap-spec.html)
